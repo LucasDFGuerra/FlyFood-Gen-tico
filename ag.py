@@ -1,15 +1,24 @@
 import random
+from utils import distancia
 
-def calcular_custo_rota_ag(rota_indices, distancias):
-    custo = distancias[(0, rota_indices[0])]
-    for i in range(len(rota_indices) - 1):
-        custo += distancias[(rota_indices[i], rota_indices[i+1])]
-    custo += distancias[(rota_indices[-1], 0)]
+def calcular_custo_rota_ag(rota, coords):
+    """Calcula a soma das distâncias de Manhattan indo de R, passando pela permutação e voltando a R."""
+    custo = 0
+    p_atual = coords['R']
+    
+    for ponto in rota:
+        p_prox = coords[ponto]
+        custo += distancia(p_atual, p_prox)
+        p_atual = p_prox
+        
+    custo += distancia(p_atual, coords['R'])
     return custo
 
 def crossover_ox(pai1, pai2):
+    """Order Crossover (OX): Preserva sub-rotas do Pai 1 e preenche o resto com a ordem do Pai 2."""
     tamanho = len(pai1)
     pt1, pt2 = sorted(random.sample(range(tamanho), 2))
+    
     filho = [None] * tamanho
     filho[pt1:pt2+1] = pai1[pt1:pt2+1]
     
@@ -23,27 +32,32 @@ def crossover_ox(pai1, pai2):
         pos_pai2 = (pos_pai2 + 1) % tamanho
     return filho
 
-def mutacao_swap(cromo, taxa_mutacao=0.2):
+def mutacao_swap(cromo, taxa_mutacao):
+    """Mutação Swap: Sorteia duas posições do cromossomo e troca os genes de lugar."""
     if random.random() < taxa_mutacao:
         idx1, idx2 = random.sample(range(len(cromo)), 2)
         cromo[idx1], cromo[idx2] = cromo[idx2], cromo[idx1]
     return cromo
 
-def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_geracoes):
-    if qtd_entregas == 0: return [], 0
+def algoritmo_genetico_steady_state(coords, letras, tam_pop, max_geracoes, taxa_crossover, taxa_mutacao):
+    """Executa o Algoritmo Genético Steady-State e extrai pontos equidistantes da evolução."""
+    if not letras: 
+        return [], 0, []
     
-    indices_cidades = list(range(1, qtd_entregas + 1))
-    
+    # 1. Criação da População Inicial (Cromossomos Aleatórios)
     populacao = []
     for _ in range(tam_pop):
-        individuo = random.sample(indices_cidades, len(indices_cidades))
-        custo = calcular_custo_rota_ag(individuo, distancias)
+        individuo = random.sample(letras, len(letras))
+        custo = calcular_custo_rota_ag(individuo, coords)
         populacao.append((individuo, custo))
         
     populacao.sort(key=lambda x: x[1])
     
-    # Roda exatamente até o número máximo fixado, sem interrupções
-    for geracao_atual in range(max_geracoes):
+    historico_convergencia = []
+    
+    # 2. Ciclo de Substituição Estacionária (Steady-State)
+    for geracao in range(1, max_geracoes + 1):
+        # Torneio Binário para seleção dos pais
         def torneio():
             competidores = random.sample(populacao, 2)
             return min(competidores, key=lambda x: x[1])[0]
@@ -51,14 +65,25 @@ def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_gerac
         pai1 = torneio()
         pai2 = torneio()
         
-        filho_cromo = crossover_ox(pai1, pai2)
-        filho_cromo = mutacao_swap(filho_cromo)
-        filho_custo = calcular_custo_rota_ag(filho_cromo, distancias)
+        # Operação de Cruzamento
+        if random.random() < taxa_crossover:
+            filho_cromo = crossover_ox(pai1, pai2)
+        else:
+            filho_cromo = pai1.copy()
+            
+        # Operação de Mutação
+        filho_cromo = mutacao_swap(filho_cromo, taxa_mutacao)
+        filho_custo = calcular_custo_rota_ag(filho_cromo, coords)
         
-        if  filho_custo < populacao[-1][1]:
+        # Reinserção Elitista: Substitui o pior da população apenas se for melhor e único
+        if filho_custo < populacao[-1][1]:
             if filho_cromo not in [ind[0] for ind in populacao]:
                 populacao[-1] = (filho_cromo, filho_custo)
                 populacao.sort(key=lambda x: x[1])
+        
+        # Filtra e captura exatamente 20 registros ao longo das gerações para plotagem limpa
+        if geracao == 1 or geracao % max(1, max_geracoes // 20) == 0 or geracao == max_geracoes:
+            historico_convergencia.append((geracao, populacao[0][1]))
 
-    melhor_rota_indices, melhor_custo = populacao[0]
-    return melhor_rota_indices, melhor_custo
+    melhor_rota, melhor_custo = populacao[0]
+    return melhor_rota, melhor_custo, historico_convergencia
