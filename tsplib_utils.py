@@ -1,7 +1,7 @@
 import math
 
-def converter_coords_para_tsplib(origem, entregas, nome_arquivo="gerado.upper.txt"):
-    """Pega coordenadas físicas, calcula Manhattan e cria um arquivo formato TSPLIB."""
+def converter_coords_para_tsplib(origem, entregas, nome_arquivo="mapa_gerado.upper.txt", multiplicador_escala=120):
+    """Pega coordenadas, calcula Manhattan e aplica multiplicador para custos realistas."""
     nomes = ['R'] + list(entregas.keys())
     coords = [origem] + list(entregas.values())
     dimensao = len(nomes)
@@ -19,7 +19,8 @@ def converter_coords_para_tsplib(origem, entregas, nome_arquivo="gerado.upper.tx
         for j in range(i + 1, dimensao):
             p1 = coords[i]
             p2 = coords[j]
-            dist = abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) 
+            # Calcula a distância e multiplica para ganhar escala realista (ex: km)
+            dist = (abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])) * multiplicador_escala
             pesos.append(str(dist))
     
     for i in range(0, len(pesos), 15):
@@ -33,14 +34,12 @@ def converter_coords_para_tsplib(origem, entregas, nome_arquivo="gerado.upper.tx
     return nome_arquivo, nomes
 
 def ler_arquivo_tsplib(caminho):
-    """Lê um arquivo .txt no formato TSPLIB (com cabeçalho) ou RAW (só números)."""
     with open(caminho, 'r') as f:
         linhas = f.readlines()
     
     dimensao = 0
     inicio_pesos = 0
     
-    # 1. Tenta achar o cabeçalho (Para os arquivos que nós mesmos geramos)
     for i, linha in enumerate(linhas):
         if linha.startswith('DIMENSION'):
             dimensao = int(linha.split(':')[1].strip())
@@ -48,22 +47,18 @@ def ler_arquivo_tsplib(caminho):
             inicio_pesos = i + 1
             break
             
-    # 2. Extrai todos os números do arquivo
     numeros = []
     for linha in linhas[inicio_pesos:]:
-        if 'EOF' in linha: break
-        # Pega só o que é número (Ignora eventuais palavras perdidas)
+        if 'EOF' in linha: # <-- CORRIGIDO AQUI (Removido o 'line' fantasma)
+            break 
         for x in linha.split():
             if x.strip().isdigit():
                 numeros.append(int(x))
                 
-    # 3. A MÁGICA: Se não tinha cabeçalho, calcula a dimensão matematicamente!
     if dimensao == 0 and len(numeros) > 0:
         total_numeros = len(numeros)
-        # Fórmula para achar a dimensão (N) a partir de uma matriz triangular superior
         dimensao = int((1 + math.sqrt(1 + 8 * total_numeros)) / 2)
         
-    # Monta o dicionário de distâncias
     distancias = {}
     idx = 0
     for i in range(dimensao):

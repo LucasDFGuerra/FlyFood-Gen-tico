@@ -29,8 +29,8 @@ def mutacao_swap(cromo, taxa_mutacao=0.2):
         cromo[idx1], cromo[idx2] = cromo[idx2], cromo[idx1]
     return cromo
 
-def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_geracoes, limite_estagnacao):
-    if qtd_entregas == 0: return [], 0, 0
+def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_geracoes):
+    if qtd_entregas == 0: return [], 0
     
     indices_cidades = list(range(1, qtd_entregas + 1))
     
@@ -42,13 +42,8 @@ def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_gerac
         
     populacao.sort(key=lambda x: x[1])
     
-    melhor_custo_global = populacao[0][1]
-    geracoes_sem_melhorar = 0
-    geracoes_executadas = 0
-    
+    # Roda exatamente até o número máximo fixado, sem interrupções
     for geracao_atual in range(max_geracoes):
-        geracoes_executadas = geracao_atual + 1 # Guarda a geração atual
-        
         def torneio():
             competidores = random.sample(populacao, 2)
             return min(competidores, key=lambda x: x[1])[0]
@@ -60,21 +55,10 @@ def algoritmo_genetico_steady_state(distancias, qtd_entregas, tam_pop, max_gerac
         filho_cromo = mutacao_swap(filho_cromo)
         filho_custo = calcular_custo_rota_ag(filho_cromo, distancias)
         
-        if filho_custo < populacao[-1][1]:
+        if  filho_custo < populacao[-1][1]:
             if filho_cromo not in [ind[0] for ind in populacao]:
                 populacao[-1] = (filho_cromo, filho_custo)
                 populacao.sort(key=lambda x: x[1])
 
-        melhor_custo_atual = populacao[0][1]
-        
-        if melhor_custo_atual < melhor_custo_global:
-            melhor_custo_global = melhor_custo_atual
-            geracoes_sem_melhorar = 0 
-        else:
-            geracoes_sem_melhorar += 1 
-            
-        if geracoes_sem_melhorar >= limite_estagnacao:
-            break # Corta o ciclo
-
     melhor_rota_indices, melhor_custo = populacao[0]
-    return melhor_rota_indices, melhor_custo, geracoes_executadas
+    return melhor_rota_indices, melhor_custo
